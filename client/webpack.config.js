@@ -110,7 +110,7 @@ const serviceWorker = {
                 terserOptions: debug ? {} : {
                   keep_classnames: false,
                   mangle: true,
-                  modules: true,
+                  // modules: true,
                   compress: true,
                   keep_fnames: false,
                   output: {
@@ -271,7 +271,7 @@ const web = {
                 terserOptions: debug ? {} : {
                   keep_classnames: false,
                   mangle: true,
-                  modules: true,
+                  // modules: true,
                   compress: true,
                   keep_fnames: false,
                   output: {
