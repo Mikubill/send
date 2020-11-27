@@ -1,0 +1,246 @@
+import Nanobus from 'nanobus';
+import Keychain from './keychain';
+import swMsg from './swMsg';
+import { delay, bytes, streamToArrayBuffer } from './utils';
+import { downloadFile, metadata, getApiUrl } from './api';
+import { blobStream } from './streams';
+
+export default class FileReceiver extends Nanobus {
+    constructor(fileInfo) {
+        super('FileReceiver');
+        this.keychain = new Keychain(fileInfo.secretKey, fileInfo.nonce);
+        if (fileInfo.requiresPassword) {
+            this.keychain.setPassword(fileInfo.password, fileInfo.url);
+        }
+        this.fileInfo = fileInfo;
+        this.reset();
+    }
+
+    get progressRatio() {
+        return this.progress[0] / this.progress[1];
+    }
+
+    get progressIndefinite() {
+        return this.state !== 'downloading';
+    }
+
+    get sizes() {
+        return {
+            partialSize: bytes(this.progress[0]),
+            totalSize: bytes(this.progress[1])
+        };
+    }
+
+    cancel() {
+        if (this.downloadRequest) {
+            this.downloadRequest.cancel();
+        }
+    }
+
+    reset() {
+        this.msg = 'fileSizeProgress';
+        this.state = 'initialized';
+        this.progress = [0, 1];
+    }
+
+    async getMetadata() {
+        const meta = await metadata(this.fileInfo.id, this.keychain);
+        this.fileInfo.name = meta.name;
+        this.fileInfo.type = meta.type;
+        this.fileInfo.iv = meta.iv;
+        this.fileInfo.size = +meta.size;
+        this.fileInfo.manifest = meta.manifest;
+        this.state = 'ready';
+    }
+
+    async reportLink(reason) {
+        await reportLink(this.fileInfo.id, this.keychain, reason);
+    }
+
+    async downloadBlob(noSave = false) {
+        // await import("buffer")
+        let eceModule = await import('./ece');
+        let zipModule = await import('./zip')
+        this.state = 'downloading';
+        this.downloadRequest = await downloadFile(
+            this.fileInfo.id,
+            this.keychain,
+            p => {
+                this.progress = [p, this.fileInfo.size];
+                this.emit('progress');
+            }
+        );
+        try {
+            const ciphertext = await this.downloadRequest.result;
+            this.downloadRequest = null;
+            this.msg = 'decryptingFile';
+            this.state = 'decrypting';
+            this.emit('decrypting');
+            let size = this.fileInfo.size;
+            let plainStream = eceModule.decryptStream(blobStream(ciphertext), this.keychain.rawSecret);
+            if (this.fileInfo.type === 'send-archive') {
+                const zip = new zipModule.Zip(this.fileInfo.manifest, plainStream);
+                plainStream = zip.stream;
+                size = zip.size;
+            }
+            const plaintext = await streamToArrayBuffer(plainStream, size);
+            if (!noSave) {
+                await saveFile({
+                    plaintext,
+                    name: decodeURIComponent(this.fileInfo.name),
+                    type: this.fileInfo.type
+                });
+            }
+            this.msg = 'downloadFinish';
+            this.emit('complete');
+            this.state = 'complete';
+        } catch (e) {
+            this.downloadRequest = null;
+            throw e;
+        }
+    }
+
+    async downloadStream(noSave = false) {
+        const start = Date.now();
+        const onprogress = p => {
+            this.progress = [p, this.fileInfo.size];
+            this.emit('progress');
+        };
+
+        this.downloadRequest = {
+            cancel: () => {
+                swMsg({
+                    request: 'cancel',
+                    id: this.fileInfo.id
+                });
+            }
+        };
+
+        try {
+            this.state = 'downloading';
+
+            const info = {
+                request: 'init',
+                id: this.fileInfo.id,
+                filename: this.fileInfo.name,
+                type: this.fileInfo.type,
+                manifest: this.fileInfo.manifest,
+                key: this.fileInfo.secretKey,
+                requiresPassword: this.fileInfo.requiresPassword,
+                password: this.fileInfo.password,
+                url: this.fileInfo.url,
+                size: this.fileInfo.size,
+                nonce: this.keychain.nonce,
+                noSave
+            };
+            await swMsg(info);
+
+            onprogress(0);
+
+            if (noSave) {
+                const res = await fetch(getApiUrl(`/api/download/${this.fileInfo.id}`));
+                if (res.status !== 200) {
+                    throw new Error(res.status);
+                }
+            } else {
+                const downloadPath = `/api/download/${this.fileInfo.id}`;
+                let downloadUrl = getApiUrl(downloadPath);
+                if (downloadUrl === downloadPath) {
+                    downloadUrl = `${location.protocol}//${location.host}${downloadPath}`;
+                }
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                document.body.appendChild(a);
+                a.click();
+            }
+
+            let prog = 0;
+            let hangs = 0;
+            while (prog < this.fileInfo.size) {
+                const msg = await swMsg({
+                    request: 'progress',
+                    id: this.fileInfo.id
+                });
+                if (msg.progress === prog) {
+                    hangs++;
+                } else {
+                    hangs = 0;
+                }
+                if (hangs > 30) {
+                    // TODO: On Chrome we don't get a cancel
+                    // signal so one is indistinguishable from
+                    // a hang. We may be able to detect
+                    // which end is hung in the service worker
+                    // to improve on this.
+                    const e = new Error('hung download');
+                    e.duration = Date.now() - start;
+                    e.size = this.fileInfo.size;
+                    e.progress = prog;
+                    throw e;
+                }
+                prog = msg.progress;
+                onprogress(prog);
+                await delay(1000);
+            }
+
+            this.downloadRequest = null;
+            this.msg = 'downloadFinish';
+            this.emit('complete');
+            this.state = 'complete';
+        } catch (e) {
+            this.downloadRequest = null;
+            if (e === 'cancelled' || e.message === '400') {
+                throw new Error(0);
+            }
+            throw e;
+        }
+    }
+
+    download(options) {
+        if (options.stream && navigator.serviceWorker.controller) {
+            return this.downloadStream(options.noSave);
+        }
+        return this.downloadBlob(options.noSave);
+    }
+}
+
+async function saveFile(file) {
+    return new Promise((resolve, reject) => {
+        const dataView = new DataView(file.plaintext);
+        const blob = new Blob([dataView], {
+            type: file.type
+        });
+
+        if (navigator.msSaveBlob) {
+            navigator.msSaveBlob(blob, file.name);
+            return resolve();
+        } else if (/iPhone|fxios/i.test(navigator.userAgent)) {
+            // This method is much slower but createObjectURL
+            // is buggy on iOS
+            const reader = new FileReader();
+            reader.addEventListener('loadend', () => {
+                if (reader.error) {
+                    return reject(reader.error);
+                }
+                if (reader.result) {
+                    const a = document.createElement('a');
+                    a.href = reader.result;
+                    a.download = file.name;
+                    document.body.appendChild(a);
+                    a.click();
+                }
+                resolve();
+            });
+            reader.readAsDataURL(blob);
+        } else {
+            const downloadUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(downloadUrl);
+            setTimeout(resolve, 100);
+        }
+    });
+}
