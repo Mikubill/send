@@ -22,18 +22,7 @@ import { setTranslate, locale } from './utils';
     ) {
         return window.location.assign('/unsupported/crypto');
     }
-    if (capabilities.serviceWorker) {
-        try {
-            await navigator.serviceWorker.register('/serviceWorker.js');
-            await navigator.serviceWorker.ready;
-        } catch (e) {
-            // continue but disable streaming downloads
-	    //capabilities.streamUpload = false;
-            capabilities.streamTransfer = false;
-        }
-    }
     // capabilities.streamTransfer = false;
-    // const recaptcha = await load(DEFAULTS.SIZE_KEY, {useRecaptchaNet: true, autoHideBadge: true})
     const translate = await getTranslator(locale());
     setTranslate(translate);
     // eslint-disable-next-line require-atomic-updates
@@ -57,5 +46,5 @@ import { setTranslate, locale } from './utils';
     app.use(controller);
     app.use(dragManager);
     app.use(pasteManager);
-    app.mount('body');
+    app.mount(document.getElementsByClassName('app')[0]);
 })();

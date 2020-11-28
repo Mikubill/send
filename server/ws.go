@@ -31,7 +31,7 @@ type chanSet struct {
 	close chan struct{}
 	write chan []byte
 	read  chan []byte
-	file  fileData
+	file  wsData
 }
 
 type fileItem struct {
@@ -52,11 +52,12 @@ type initResponse struct {
 	URL        string `json:"url"`
 }
 
-type fileData struct {
+type wsData struct {
 	Authorization string `json:"authorization"`
 	Down          int    `json:"dlimit"`
 	FileMetadata  string `json:"fileMetadata"`
 	TimeLimit     int    `json:"timeLimit"`
+	HasPassword   bool   `json:"has_password"`
 }
 
 var (
@@ -64,7 +65,7 @@ var (
 	pongWait   = 60 * time.Second
 	pingPeriod = (pongWait * 9) / 10
 
-	maxMessageSize = int64(35*megabyte)
+	maxMessageSize = int64(10*megabyte)
 	newline        = []byte{'\n'}
 	//space          = []byte{' '}
 )
@@ -109,7 +110,7 @@ func (c *wsClient) readPump() {
 				c.channel.read <- message
 			}
 		} else {
-			var meta fileData
+			var meta wsData
 			if err := json.Unmarshal(message, &meta); err != nil {
 				break
 			}
@@ -121,7 +122,7 @@ func (c *wsClient) readPump() {
 				meta.Down = 0
 			}
 			res := fileItem{
-				Pwd:       false,
+				Pwd:       meta.HasPassword,
 				Auth:      strings.Split(meta.Authorization, " ")[1],
 				Meta:      meta.FileMetadata,
 				Token:     randomHexStr(20),

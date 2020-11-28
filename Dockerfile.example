@@ -1,0 +1,32 @@
+FROM alpine as alpine
+RUN apk add -U --no-cache ca-certificates
+
+FROM node:lts as node
+RUN set -x \
+    # Add user
+    && addgroup --gid 10001 app \
+    && adduser --disabled-password \
+        --gecos '' \
+        --gid 10001 \
+        --home /app \
+        --uid 10001 \
+        app
+COPY --chown=app:app client /client
+COPY --chown=app:app .git /client/.git
+WORKDIR /client
+USER app
+RUN npm install --save-dev 
+RUN npx webpack --progress
+
+FROM golang as golang
+COPY server /server
+WORKDIR /server
+RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -ldflags '-s -w -extldflags "-static"' -o app .
+
+FROM scratch
+COPY --from=golang /server/app /
+COPY --from=node /client/dist /dist
+COPY --from=alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+EXPOSE 443 
+CMD ["/app"]

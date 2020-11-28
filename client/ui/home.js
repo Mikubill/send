@@ -5,6 +5,7 @@ import modal from './modal';
 import intro from './intro';
 
 export default (state, emit) => {
+    // emit('updateInfo');
     const archives = state.storage.files
     .filter(archive => !archive.expired)
     .map(archive => archived(state, emit, archive));

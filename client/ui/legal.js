@@ -37,7 +37,8 @@ export default (state, emit) => {
               history (and with whomever you shared it) until manually deleted.
             </li>
             <li class="mb-4">
-              <b>Third Party Services</b>: We use Google Cloud Platform and Cloudflare.
+              <b>Third Party Services</b>: We use Google Cloud Platform, 
+              Google Recaptcha and Cloudflare.
             </li>
           </ul>
         </div>

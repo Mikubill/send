@@ -1,5 +1,6 @@
 import { bufferToStr, isFile } from './utils';
 import OwnedFile from './ownedFile';
+import { fileInfo } from './api';
 
 class Mem {
     constructor() {
@@ -154,15 +155,26 @@ class Storage {
         let incoming = false;
         let outgoing = false;
         let downloadCount = false;
+        let counter = 0;
         for (const f of files) {
             if (!this.getFileById(f.id)) {
                 this.addFile(new OwnedFile(f));
                 incoming = true;
             }
         }
+        let result;
         const workingFiles = this.files.slice();
+        try {
+            result = await fileInfo(workingFiles.map(p => p.id), workingFiles.map(p => p.ownerToken))
+        } catch(e) {
+            return {
+                incoming,
+                outgoing,
+                downloadCount
+            };
+        }
         for (const f of workingFiles) {
-            const cc = await f.updateDownloadCount();
+            const cc = await f.updateDownloadCount(result[counter]);
             if (cc) {
                 await this.writeFile(f);
             }
@@ -173,6 +185,7 @@ class Storage {
             } else if (!files.find(x => x.id === f.id)) {
                 outgoing = true;
             }
+            counter < result.length && counter++
         }
         return {
             incoming,

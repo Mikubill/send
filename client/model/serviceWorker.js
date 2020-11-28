@@ -12,7 +12,7 @@ import { bufferToStr, strToBuffer } from './utils';
 let noSave = false;
 let version = __VERSION__;
 const map = new Map();
-const IMAGES = /.*\.(png|svg|jpg)$/;
+const IMAGES = /.*\.(png|svg|jpg|icon)$/;
 const VERSIONED_ASSET = /\.[A-Fa-f0-9]{8}\.(js|css|png|svg|jpg)(#\w+)?$/;
 const DOWNLOAD_URL = /\/api\/download\/([A-Fa-f0-9]{4,})/;
 const FONT = /\.woff2?$/;
@@ -37,6 +37,7 @@ async function encryptHandler(file, port) {
  
 async function decryptHandler(id) {
     const file = map.get(id);
+    // console.log(file)
     if (!file) {
         return new Response(null, {
             status: 400
@@ -50,7 +51,7 @@ async function decryptHandler(id) {
             keychain.setPassword(file.password, file.url);
         }
 
-        file.download = downloadStream(id, keychain);
+        file.download = downloadStream(id, keychain, file.token);
         const body = await file.download.result;
         const decrypted = decryptStream(body, keychain.rawSecret);
 
@@ -95,7 +96,7 @@ async function decryptHandler(id) {
         return new Response(null, {
             status: 302,
             headers: {
-                Location: `/download/${id}/#${file.key}`
+                Location: `/download/${id}#${file.key}`
             }
         });
     }
@@ -166,6 +167,7 @@ self.onmessage = event => {
             type: event.data.type,
             manifest: event.data.manifest,
             size: event.data.size,
+            token: event.data.token,
             progress: 0
         };
         map.set(event.data.id, info);

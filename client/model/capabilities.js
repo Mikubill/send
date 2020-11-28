@@ -33,13 +33,13 @@ async function checkCrypto() {
             false,
             ['deriveKey']
         );
-        await crypto.subtle.generateKey({
-                name: 'ECDH',
-                namedCurve: 'P-256'
-            },
-            true,
-            ['deriveBits']
-        );
+        // await crypto.subtle.generateKey({
+        //         name: 'ECDH',
+        //         namedCurve: 'P-256'
+        //     },
+        //     true,
+        //     ['deriveBits']
+        // );
         return true;
     } catch (err) {
         try {

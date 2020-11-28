@@ -4,6 +4,7 @@ import copyDialog from '../ui/copyDialog';
 import { updateFavicon } from '../ui/faviconProgressbar';
 import okDialog from '../ui/okDialog';
 import shareDialog from '../ui/shareDialog';
+// import { load } from 'recaptcha-v3'
 
 import {
     bytes,
@@ -22,10 +23,10 @@ export default function(state, emitter) {
         emitter.emit('render');
     }
 
-    async function checkFiles() {
+    async function checkFiles(toRender = true) {
         const changes = await state.storage.merge();
         if (changes.incoming || changes.downloadCount) {
-            render();
+            toRender && render();
         }
     }
 
@@ -35,15 +36,69 @@ export default function(state, emitter) {
         render();
     }
 
+    async function initReCaptcha() {
+        return new Promise(resolve => {
+            resolve();
+            // if (state.recaptcha) {
+            //     resolve();
+            // }
+            // load(DEFAULTS.SIZE_KEY, {useRecaptchaNet: true, autoHideBadge: true}).then((r => {
+            //     resolve();
+            //     state.recaptcha = r;
+            //     prepareReCaptcha()
+            // }))
+        })
+    }
+
+    async function initServiceWorker() {
+        if (state.capabilities.serviceWorker) {
+            try {
+                await navigator.serviceWorker.register('/serviceWorker.js');
+                await navigator.serviceWorker.ready;
+            } catch (e) {
+                state.capabilities.streamTransfer = false;
+            }
+        }
+    }    
+
+    async function getToken() {
+        await state.recaptchaPromise;
+        return new Promise(resolve => {
+            // disabled
+            resolve('token');
+            // state.recaptcha.execute('transfer').then((token) => {
+            //     resolve(token);
+            // })
+        })
+    }
+
+    function prepareReCaptcha() {
+        if (!self.cachedRecaptcha || self.cachedRecaptcha.e <= Date.now()) {
+            self.cachedRecaptcha = {
+                c: getToken(),
+                e: Date.now() + 60*2.5*1000
+            }
+        }
+        return self.cachedRecaptcha.c
+    }
+
+
     emitter.on('DOMContentLoaded', () => {
         document.addEventListener('blur', () => (updateTitle = true));
         document.addEventListener('focus', () => {
-            emitter.emit('DOMTitleChange', 'Send');
+            emitter.emit('DOMTitleChange', 'Neko Send');
             updateFavicon(0);
         });
+        state.recaptchaPromise = initReCaptcha();
         updateFavicon(0);
+        initServiceWorker();
         checkFiles();
     });
+
+    // emitter.on('updateInfo', () => {
+    //     updateFavicon(0);
+    //     checkFiles();
+    // });
 
     emitter.on('render', () => {
         lastRender = Date.now();
@@ -69,7 +124,7 @@ export default function(state, emitter) {
 
     emitter.on('cancel', () => {
         state.transfer.cancel();
-        emitter.emit('DOMTitleChange', 'Send');
+        emitter.emit('DOMTitleChange', 'Neko Send');
         updateFavicon(0);
     });
 
@@ -78,6 +133,9 @@ export default function(state, emitter) {
     }) => {
         if (files.length < 1) {
             return;
+        }
+        if (files.length == 0) {
+            prepareReCaptcha()
         }
         try {
             state.archive.addFiles(
@@ -122,24 +180,23 @@ export default function(state, emitter) {
         await delay(200);
         const start = Date.now();
         try {
-            let token;
-            if (state.recaptcha) {
-                token = await state.recaptcha.execute('upload')
-            }
+            let token = await prepareReCaptcha()
+            self.cachedRecaptcha = null
             const ownedFile = await sender.upload(archive, token, state.capabilities);
             state.storage.totalUploads += 1;
-            const duration = Date.now() - start;
-            emitter.emit('DOMTitleChange', 'Send');
-            updateFavicon(0);
-
             state.storage.addFile(ownedFile);
+            console.log(state.storage, ownedFile)
+            const duration = Date.now() - start;
+            emitter.emit('DOMTitleChange', 'Neko Send');
+            updateFavicon(0);
+            
             // TODO integrate password into /upload request
-            if (archive.password) {
-                emitter.emit('password', {
-                    password: archive.password,
-                    file: ownedFile
-                });
-            }
+            // if (archive.password) {
+            //     emitter.emit('password', {
+            //         password: archive.password,
+            //         file: ownedFile
+            //     });
+            // }
             state.modal = state.capabilities.share ?
                 shareDialog(ownedFile.name, ownedFile.url) :
                 copyDialog(ownedFile.name, ownedFile.url);
@@ -157,29 +214,10 @@ export default function(state, emitter) {
             archive.clear();
             state.uploading = false;
             state.transfer = null;
-            await state.storage.merge();
+            checkFiles();
             render();
+            prepareReCaptcha();
         }
-    });
-
-    emitter.on('password', async ({
-        password,
-        file
-    }) => {
-        try {
-            state.settingPassword = true;
-            render();
-            await file.setPassword(password);
-            state.storage.writeFile(file);
-            await delay(1000);
-        } catch (err) {
-            // eslint-disable-next-line no-console
-            console.error(err);
-            state.passwordSetError = err;
-        } finally {
-            state.settingPassword = false;
-        }
-        render();
     });
 
     emitter.on('getMetadata', async () => {
@@ -212,24 +250,28 @@ export default function(state, emitter) {
         const size = file.size;
         const start = Date.now();
         try {
+            let token = await prepareReCaptcha()
+            self.cachedRecaptcha = null
             const dl = state.transfer.download({
-                stream: state.capabilities.streamTransfer
+                stream: state.capabilities.streamTransfer,
+                token: token,
             });
             render();
             await dl;
             state.storage.totalDownloads += 1;
             const duration = Date.now() - start;
-            emitter.emit('DOMTitleChange', 'Send');
+            emitter.emit('DOMTitleChange', 'Neko Send');
             updateFavicon(0);
         } catch (err) {
-            if (err.message === '0') {
+            if (err && err.message === '0') {
                 // download cancelled
                 state.transfer.reset();
                 render();
             } else {
                 // eslint-disable-next-line no-console
+                console.log(err)
                 state.transfer = null;
-                const location = err.message === '404' ? '/404' : '/error';
+                const location = err ? err.message === '404' ? '/404' : '/error' : '/error';
                 if (location === '/error') {
                     const duration = Date.now() - start;
                 }
@@ -240,17 +282,9 @@ export default function(state, emitter) {
         }
     });
 
-    emitter.on('copy', ({ url }) => { copyToClipboard(url); });
-
-    emitter.on('closeModal', () => {
-        state.modal = null;
-        // }
-        render();
-    });
-
     setInterval(() => {
         // poll for updates of the upload list
-        if (!state.modal && state.route === '/') {
+            if (!state.modal && state.route === '/') {
             checkFiles();
         }
     }, 2 * 60 * 1000);
@@ -263,7 +297,15 @@ export default function(state, emitter) {
             state.storage.files.length > 0 &&
             Date.now() - lastRender > 30000
         ) {
-            render();
+             render();
         }
     }, 60000);
+
+    emitter.on('copy', ({ url }) => { copyToClipboard(url); });
+
+    emitter.on('closeModal', () => {
+        state.modal = null;
+        // }
+        render();
+    });
 }

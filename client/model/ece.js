@@ -284,12 +284,12 @@ function bufferedStream(readable) {
     return new ReadableStream({
         async pull(controller) {
             let duration = performance.now() - timing
-            if (timing && duration < 250 && size < 15360*1024) {
-                size *= 1.25
+            if (timing && duration < 100 && size < 8420*1024) {
+                size *= 1.1
                 // console.log("block size changed:", size/1000) 
             }
-            if (timing && duration > 750 && size > 64*1024) {
-                size /= 2
+            if (timing && duration > 500 && size > 64*1024) {
+                size /= duration / 200
                 // console.log("block size changed:", size/1000)
             }
             timing = performance.now();

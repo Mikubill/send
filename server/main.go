@@ -17,6 +17,7 @@ var (
 	bs58           = NewAlphabet("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 	json           = jsoniter.ConfigCompatibleWithStandardLibrary
 	defaultPool, _ = ants.NewPool(32768)
+	//captcha, _     = recaptcha.NewReCAPTCHA(os.Getenv("captcha"), recaptcha.V3, 10 * time.Second)
 )
 
 func main() {

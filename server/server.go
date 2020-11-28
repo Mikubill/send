@@ -168,6 +168,17 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 	if strings.HasPrefix(r.URL.Path, "/api") {
 		if r.URL.Path == "/api/ws" {
+			//token := strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",")
+			//if len(token) != 2 {
+			//	if err := captcha.Verify(token[1]); err != nil {
+			//		log.Println(err)
+			//		w.WriteHeader(http.StatusBadRequest)
+			//		return
+			//	}
+			//} else {
+			//	w.WriteHeader(http.StatusBadRequest)
+			//	return
+			//}
 			conn, err := wsInit.Upgrade(w, r, nil)
 			if err != nil {
 				errLogger("req.ws.upgrade()", err)
@@ -198,6 +209,11 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/download") {
+			//if err := captcha.Verify(r.Header.Get("x-token")); err != nil {
+			//	log.Println(err)
+			//	w.WriteHeader(http.StatusBadRequest)
+			//	return
+			//}
 			downloadHandler(w, r)
 			return
 		}

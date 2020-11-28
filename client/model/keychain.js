@@ -62,7 +62,7 @@ export default class Keychain {
         }
     }
 
-    setPassword(password, shareUrl) {
+    setPassword(password) {
         // console.log(password, shareUrl)
         this.authKeyPromise = crypto.subtle
         .importKey('raw', encoder.encode(password), {
@@ -73,7 +73,7 @@ export default class Keychain {
         .then(passwordKey =>
             crypto.subtle.deriveKey({
                     name: 'PBKDF2',
-                    salt: encoder.encode(shareUrl),
+                    salt: new Uint8Array(),//encoder.encode(shareUrl),
                     iterations: 100,
                     hash: 'SHA-256'
                 },
@@ -138,13 +138,13 @@ export default class Keychain {
         return ciphertext;
     }
 
-    encryptStream(plainStream) {
-        return encryptStream(plainStream, this.rawSecret);
-    }
+    // encryptStream(plainStream) {
+    //     return encryptStream(plainStream, this.rawSecret);
+    // }
 
-    decryptStream(cryptotext) {
-        return decryptStream(cryptotext, this.rawSecret);
-    }
+    // decryptStream(cryptotext) {
+    //     return decryptStream(cryptotext, this.rawSecret);
+    // }
 
     async decryptMetadata(ciphertext) {
         const metaKey = await this.metaKeyPromise;

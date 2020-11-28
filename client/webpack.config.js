@@ -20,15 +20,20 @@ const webJsOptions = {
         modules: false,
         bugfixes: true,
         useBuiltIns: 'entry',
-        corejs: 3
+        corejs: 3,
       }
     ]
   ],
   plugins: [
-    'module:nanohtml',
-    '@babel/plugin-transform-runtime',
-    '@babel/plugin-syntax-dynamic-import',
-    '@babel/plugin-proposal-class-properties',
+    ['module:nanohtml'],
+    // ["module:fast-async"],
+    // ["transform-async-with-nodent"],
+    ["babel-plugin-idx"],
+    ["babel-plugin-groundskeeper-willie"],
+
+    ["@babel/plugin-transform-runtime"],
+    ['@babel/plugin-syntax-dynamic-import'],
+    ['@babel/plugin-proposal-class-properties']
   ]
 };
 

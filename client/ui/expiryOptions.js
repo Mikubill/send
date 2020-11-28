@@ -5,7 +5,7 @@ import selectbox from './selectbox';
 
 export default (state, emit) => {
   const el = html `
-        <div class="relative inline-block my-1 ${state.archive.expiry
+        <div class="relative inline-block my-1 ${state.archive.hasExp
             ? ''
             : 'invisible'}" id="exp-2">
       ${raw(
@@ -23,10 +23,10 @@ export default (state, emit) => {
         const input = document.getElementById('exp-2');
         if (checked) {
             input.classList.remove('invisible');
-            state.archive.expiry = true;
+            state.archive.hasExp = true;
         } else {
             input.classList.add('invisible');
-            state.archive.expiry = false;
+            state.archive.hasExp = false;
         }
     }
 
@@ -98,7 +98,7 @@ export default (state, emit) => {
         <input
           id="add-expiry"
           type="checkbox"
-          ${state.archive.expiry ? 'checked' : ''}
+          ${state.archive.hasExp ? 'checked' : ''}
           autocomplete="off"
           onchange="${toggleExpiryInput}"
         />

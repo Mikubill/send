@@ -57,7 +57,7 @@ export default class FileReceiver extends Nanobus {
         await reportLink(this.fileInfo.id, this.keychain, reason);
     }
 
-    async downloadBlob(noSave = false) {
+    async downloadBlob(noSave = false, token) {
         // await import("buffer")
         let eceModule = await import('./ece');
         let zipModule = await import('./zip')
@@ -65,6 +65,7 @@ export default class FileReceiver extends Nanobus {
         this.downloadRequest = await downloadFile(
             this.fileInfo.id,
             this.keychain,
+            token,
             p => {
                 this.progress = [p, this.fileInfo.size];
                 this.emit('progress');
@@ -100,7 +101,7 @@ export default class FileReceiver extends Nanobus {
         }
     }
 
-    async downloadStream(noSave = false) {
+    async downloadStream(noSave = false, token) {
         const start = Date.now();
         const onprogress = p => {
             this.progress = [p, this.fileInfo.size];
@@ -131,28 +132,29 @@ export default class FileReceiver extends Nanobus {
                 url: this.fileInfo.url,
                 size: this.fileInfo.size,
                 nonce: this.keychain.nonce,
+                token: token,
                 noSave
             };
             await swMsg(info);
 
             onprogress(0);
 
-            if (noSave) {
-                const res = await fetch(getApiUrl(`/api/download/${this.fileInfo.id}`));
-                if (res.status !== 200) {
-                    throw new Error(res.status);
-                }
-            } else {
-                const downloadPath = `/api/download/${this.fileInfo.id}`;
-                let downloadUrl = getApiUrl(downloadPath);
-                if (downloadUrl === downloadPath) {
-                    downloadUrl = `${location.protocol}//${location.host}${downloadPath}`;
-                }
-                const a = document.createElement('a');
-                a.href = downloadUrl;
-                document.body.appendChild(a);
-                a.click();
+            // if (noSave) {
+            //     const res = await fetch(getApiUrl(`/api/download/${this.fileInfo.id}`));
+            //     if (res.status !== 200) {
+            //         throw new Error(res.status);
+            //     }
+            // } else {
+            const downloadPath = `/api/download/${this.fileInfo.id}`;
+            let downloadUrl = getApiUrl(downloadPath);
+            if (downloadUrl === downloadPath) {
+                downloadUrl = `${location.protocol}//${location.host}${downloadPath}`;
             }
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            document.body.appendChild(a);
+            a.click();
+            // }
 
             let prog = 0;
             let hangs = 0;
@@ -198,9 +200,9 @@ export default class FileReceiver extends Nanobus {
 
     download(options) {
         if (options.stream && navigator.serviceWorker.controller) {
-            return this.downloadStream(options.noSave);
+            return this.downloadStream(options.noSave, options.token);
         }
-        return this.downloadBlob(options.noSave);
+        return this.downloadBlob(options.noSave, options.token);
     }
 }
 

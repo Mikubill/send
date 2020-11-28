@@ -65,9 +65,17 @@ async function fetchWithAuthAndRetry(url, params, keychain) {
 }
 
 export async function del(id, owner_token) {
+    if (typeof(id) == "string") {
+        id = [id]
+    }
+    if (typeof(owner_token) == "string") {
+        owner_token = [owner_token]
+    }
+    
     const response = await fetch(
-        getApiUrl(`/api/delete/${id}`),
+        getApiUrl(`/api/delete`),
         post({
+            id,
             owner_token
         })
     );
@@ -88,9 +96,17 @@ export async function setParams(id, owner_token, bearerToken, params) {
 }
 
 export async function fileInfo(id, owner_token) {
+    if (typeof(id) == "string") {
+        id = [id]
+    }
+    if (typeof(owner_token) == "string") {
+        owner_token = [owner_token]
+    }
+
     const response = await fetch(
-        getApiUrl(`/api/info/${id}`),
+        getApiUrl(`/api/info`),
         post({
+            id,
             owner_token
         })
     );
@@ -137,7 +153,7 @@ export async function setPassword(id, owner_token, keychain) {
     return response.ok;
 }
 
-function asyncInitWebSocket(server) {
+function asyncInitWebSocket(server, token) {
     return new Promise((resolve, reject) => {
         try {
             const ws = new WebSocket(server);
@@ -186,6 +202,7 @@ async function upload(
     verifierB64,
     timeLimit,
     dlimit,
+    pwd,
     token,
     onprogress,
     canceller
@@ -196,14 +213,14 @@ async function upload(
     const port = window.location.port;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const endpoint = `${protocol}//${host}${port ? ':' : ''}${port}/api/ws`;
-    const ws = await asyncInitWebSocket(endpoint);
+    const ws = await asyncInitWebSocket(endpoint, token);
 
     try {
         const metadataHeader = bufferToStr(new Uint8Array(metadata));
         const fileMeta = {
             fileMetadata: metadataHeader,
             authorization: `send-v1 ${verifierB64}`,
-            recaptcha: token,
+            has_password: pwd,
             timeLimit,
             dlimit
         };
@@ -230,7 +247,7 @@ async function upload(
             state = await reader.read();
 
             while (
-                ws.bufferedAmount > 20 * 1024 * 1024 &&
+                ws.bufferedAmount > buf.length &&
                 ws.readyState === WebSocket.OPEN &&
                 !canceller.cancelled
             ) {
@@ -265,6 +282,7 @@ export function uploadWs(
     verifierB64,
     timeLimit,
     dlimit,
+    pwd,
     token,
     onprogress
 ) {
@@ -283,6 +301,7 @@ export function uploadWs(
             verifierB64,
             timeLimit,
             dlimit,
+            pwd,
             token,
             onprogress,
             canceller
@@ -292,13 +311,14 @@ export function uploadWs(
 
 ////////////////////////
 
-async function downloadS(id, keychain, signal) {
+async function downloadS(id, keychain, token, signal) {
     const auth = await keychain.authHeader();
 
     const response = await fetch(getApiUrl(`/api/download/${id}`), {
         signal: signal,
         method: 'GET',
         headers: {
+            "x-token": token,
             Authorization: auth
         }
     });
@@ -315,13 +335,13 @@ async function downloadS(id, keychain, signal) {
     return response.body;
 }
 
-async function tryDownloadStream(id, keychain, signal, tries = 2) {
+async function tryDownloadStream(id, keychain, token, signal, tries = 2) {
     try {
-        const result = await downloadS(id, keychain, signal);
+        const result = await downloadS(id, keychain, token, signal);
         return result;
     } catch (e) {
         if (e.message === '401' && --tries > 0) {
-            return tryDownloadStream(id, keychain, signal, tries);
+            return tryDownloadStream(id, keychain, token, signal, tries);
         }
         if (e.name === 'AbortError') {
             throw new Error('0');
@@ -330,7 +350,7 @@ async function tryDownloadStream(id, keychain, signal, tries = 2) {
     }
 }
 
-export function downloadStream(id, keychain) {
+export function downloadStream(id, keychain, token) {
     const controller = new AbortController();
 
     function cancel() {
@@ -338,13 +358,13 @@ export function downloadStream(id, keychain) {
     }
     return {
         cancel,
-        result: tryDownloadStream(id, keychain, controller.signal)
+        result: tryDownloadStream(id, keychain, token, controller.signal)
     };
 }
 
 //////////////////
 
-async function download(id, keychain, onprogress, canceller) {
+async function download(id, keychain, token, onprogress, canceller) {
     const auth = await keychain.authHeader();
     const xhr = new XMLHttpRequest();
     canceller.oncancel = function() {
@@ -372,25 +392,26 @@ async function download(id, keychain, onprogress, canceller) {
         });
         xhr.open('get', getApiUrl(`/api/download/blob/${id}`));
         xhr.setRequestHeader('Authorization', auth);
+        xhr.setRequestHeader('x-token', token);
         xhr.responseType = 'blob';
         xhr.send();
         onprogress(0);
     });
 }
 
-async function tryDownload(id, keychain, onprogress, canceller, tries = 2) {
+async function tryDownload(id, keychain, token, onprogress, canceller, tries = 2) {
     try {
-        const result = await download(id, keychain, onprogress, canceller);
+        const result = await download(id, keychain, token, onprogress, canceller);
         return result;
     } catch (e) {
         if (e.message === '401' && --tries > 0) {
-            return tryDownload(id, keychain, onprogress, canceller, tries);
+            return tryDownload(id, keychain, token, onprogress, canceller, tries);
         }
         throw e;
     }
 }
 
-export function downloadFile(id, keychain, onprogress) {
+export function downloadFile(id, keychain, token, onprogress) {
     const canceller = {
         oncancel: function() {} // download() sets this
     };
@@ -400,7 +421,7 @@ export function downloadFile(id, keychain, onprogress) {
     }
     return {
         cancel,
-        result: tryDownload(id, keychain, onprogress, canceller)
+        result: tryDownload(id, keychain, token, onprogress, canceller)
     };
 }
 

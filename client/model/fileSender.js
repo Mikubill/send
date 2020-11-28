@@ -46,10 +46,10 @@ export default class FileSender extends Nanobus {
     }
 
     upload(archive, token, cap) {
-        if (!archive.expiry) {
-            archive.timeLimit = 0
-            archive.dlimit = 0
-        }
+        // if (!archive.hasExp) {
+        //     archive.timeLimit = 0
+        //     archive.dlimit = 0
+        // }
         if (cap.streamTransfer && navigator.serviceWorker.controller) {
             return this.uploadStream(archive, token);
         }
@@ -57,11 +57,15 @@ export default class FileSender extends Nanobus {
     }
 
     async uploadWs(encStream, archive, token) {
+        if (archive.password) {
+            this.keychain.setPassword(archive.password);
+        }
+        const hasPassword = archive.password != undefined && archive.password != null
         const totalSize = encryptedSize(archive.size)
         const metadata = await this.keychain.encryptMetadata(archive);
         const authKey = await this.keychain.authKeyB64()
         this.uploadRequest = uploadWs(encStream, metadata, authKey, 
-            archive.timeLimit, archive.dlimit, token,
+            archive.timeLimit, archive.dlimit, hasPassword, token,
             p => {
                 this.progress = [p, totalSize];
                 this.emit('progress');
@@ -87,7 +91,7 @@ export default class FileSender extends Nanobus {
                 size: archive.size,
                 manifest: archive.manifest,
                 time: result.duration,
-                expiry: archive.expiry,
+                hasExp: archive.hasExp,
                 speed: archive.size / (result.duration / 1000),
                 createdAt: Date.now(),
                 expiresAt: Date.now() + archive.timeLimit * 1000,
@@ -95,9 +99,12 @@ export default class FileSender extends Nanobus {
                 nonce: this.keychain.nonce,
                 ownerToken: result.ownerToken,
                 dlimit: archive.dlimit,
-                timeLimit: archive.timeLimit
+                timeLimit: archive.timeLimit,
             });
-
+            if (archive.password) {
+                ownedFile.password = archive.password
+                ownedFile._hasPassword = true;
+            }
             return ownedFile;
         } catch (e) {
             this.msg = 'errorPageHeader';

@@ -23,6 +23,7 @@ type infoResponse struct {
 	DownloadLimit int   `json:"dlimit"`
 	DownloadCount int   `json:"dtotal"`
 	Last          int64 `json:"ttl"`
+	Exist         bool  `json:"exist"`
 }
 
 type existResponse struct {
@@ -30,7 +31,8 @@ type existResponse struct {
 }
 
 type ownerBody struct {
-	OwnerToken string `json:"owner_token"`
+	ID []string `json:"id"`
+	OwnerToken []string `json:"owner_token"`
 }
 
 type authBody struct {
@@ -38,16 +40,16 @@ type authBody struct {
 	OwnerToken string `json:"owner_token"`
 }
 
-func ownerTokenExtractor(r *http.Request) string {
+func ownerTokenExtractor(r *http.Request) ([]string, []string) {
 	var own ownerBody
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return ""
+		return nil, nil
 	}
 	if err := json.Unmarshal(body, &own); err != nil {
-		return ""
+		return nil, nil
 	}
-	return own.OwnerToken
+	return own.ID, own.OwnerToken
 }
 
 func authExtractor(r *http.Request) (string, string) {
@@ -87,50 +89,59 @@ func pwdHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteHandler(w http.ResponseWriter, r *http.Request) {
-	id := path.Base(r.URL.Path)
-	token := ownerTokenExtractor(r)
-	if token == "" {
+	//id := path.Base(r.URL.Path)
+	id, token := ownerTokenExtractor(r)
+	if token == nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	for e, item := range id {
+		if res := itemInfo(item); res != nil {
+			if res.Token != token[e] {
+				continue
+			}
+			fileMap.Remove(item)
+			_ = os.Remove(path.Join("data", item+".bin"))
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func itemInfo(id string) *fileItem {
 	if v, ok := fileMap.Get(id); ok {
 		res := v.(fileItem)
-		if res.Token != token {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		fileMap.Remove(id)
-		_ = os.Remove(path.Join("data", id+".bin"))
-		w.WriteHeader(http.StatusNoContent)
-		return
-	} else {
-		http.NotFound(w, r)
+		return &res
 	}
+	return nil
 }
 
 func infoHandler(w http.ResponseWriter, r *http.Request) {
-	id := path.Base(r.URL.Path)
-	token := ownerTokenExtractor(r)
-	if token == "" {
+	id, token := ownerTokenExtractor(r)
+	if token == nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if v, ok := fileMap.Get(id); ok {
-		res := v.(fileItem)
-		if res.Token != token {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
+	var result []infoResponse
+	for e, item := range id {
+		if res := itemInfo(item); res != nil {
+			if res.Token != token[e] {
+				result = append(result, infoResponse{})
+				continue
+			}
+			result = append(result, infoResponse{
+				DownloadLimit: res.DownLimit,
+				DownloadCount: res.DownCount,
+				Last:          (res.Expire - time.Now().Unix()) * 1000,
+				Exist: 		true,
+			})
+		} else {
+			result = append(result, infoResponse{Exist:false})
 		}
-		resp, _ := json.Marshal(infoResponse{
-			DownloadLimit: res.DownLimit,
-			DownloadCount: res.DownCount,
-			Last:          (res.Expire - time.Now().Unix()) * 1000,
-		})
-		_, _ = w.Write(resp)
-		return
-	} else {
-		http.NotFound(w, r)
 	}
+	resp, _ := json.Marshal(result)
+	_, _ = w.Write(resp)
 }
 
 func existHandler(w http.ResponseWriter, r *http.Request) {
@@ -164,13 +175,18 @@ func metaHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		res.Nonce = randomByte(16)
-		w.Header().Set("WWW-Authenticate", "send-v1 "+b58encode(res.Nonce))
-		fileMap.Set(id, res)
+		nonce := fileMap.rotateNonce(id)
+		w.Header().Set("WWW-Authenticate", "send-v1 "+b58encode(nonce))
+		exp := res.Expire - time.Now().Unix()
+		if exp < 0 && res.DownLimit != 0 {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
 		rs := metaResponse{
 			Metadata: res.Meta,
-			Final:    res.DownCount >= res.DownLimit,
-			TTL:      (res.Expire - time.Now().Unix()) * 1000,
+			Final:    res.DownCount >= res.DownLimit && res.DownLimit != 0,
+			TTL:      exp * 1000,
 		}
 		resp, _ := json.Marshal(rs)
 		_, _ = w.Write(resp)
@@ -195,24 +211,45 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		res.Nonce = randomByte(16)
-		res.DownCount++
-		if res.DownCount < res.DownLimit || res.DownLimit == 0 {
-			fileMap.Set(id, res)
-		} else {
-			fileMap.Remove(id)
+		if res.DownCount > res.DownLimit && res.DownLimit != 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
+
+		fileMap.addDown(id)
+		fileMap.rotateNonce(id)
 		w.Header().Set("WWW-Authenticate", "send-v1 "+b58encode(res.Nonce))
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", strconv.FormatInt(res.Length, 10))
 		http.ServeFile(w, r, path.Join("data", id+".bin"))
-		if res.DownCount >= res.DownLimit && res.DownLimit != 0 {
-			_ = os.Remove(path.Join("data", id+".bin"))
-		}
 		return
 	} else {
 		http.NotFound(w, r)
 	}
+}
+
+func (m *ConcurrentMap) rotateNonce(id string) []byte {
+	shard := m.GetShard(id)
+	newNonce := randomByte(16)
+	shard.Lock()
+	if v, ok := shard.items[id]; ok {
+		val := v.(fileItem)
+		val.Nonce = newNonce
+		shard.items[id] = val
+	}
+	shard.Unlock()
+	return newNonce
+}
+
+func (m *ConcurrentMap) addDown(id string) {
+	shard := m.GetShard(id)
+	shard.Lock()
+	if v, ok := shard.items[id]; ok {
+		val := v.(fileItem)
+		val.DownCount++
+		shard.items[id] = val
+	}
+	shard.Unlock()
 }
 
 func b58encode(a []byte) string {

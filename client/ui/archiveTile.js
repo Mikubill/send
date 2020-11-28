@@ -8,7 +8,7 @@ import list from './list';
 import expiryOptions from './expiryOptions';
 
 function expiryInfo(translate, archive) {
-    if (archive.dlimit <= 0 || !archive.expiry) {
+    if (archive.dlimit <= 0 || !archive.hasExp) {
       return raw(translate('downloadCount', { num: archive.dtotal }));
     }
     const l10n = timeLeft(archive.expiresAt - Date.now());
