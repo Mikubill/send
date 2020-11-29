@@ -87,9 +87,9 @@ export default async function getCapabilities() {
         await import('intl-pluralrules'); 
     }
 
-    if (typeof Symbol === 'undefined') {
-        await import('core-js');
-    }
+    // if (typeof Symbol === 'undefined') {
+    //     await import('core-js');
+    // }
 
     // todo: disable account
     // let account = typeof AUTH_CONFIG !== 'undefined';

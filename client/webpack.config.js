@@ -19,7 +19,7 @@ const webJsOptions = {
       {
         modules: false,
         bugfixes: true,
-        useBuiltIns: 'entry',
+        useBuiltIns: 'usage',
         corejs: 3,
       }
     ]
@@ -136,7 +136,7 @@ const web = {
     output: {
         publicPath: "/assets/",
         chunkFilename: 'chunk.[contenthash:8].js',
-        filename: 'app.[contenthash:8].js',
+        filename: '[name].[contenthash:8].js',
         path: path.resolve(__dirname, 'dist')
     },
     module: {
@@ -253,6 +253,11 @@ const web = {
         usedExports: true,
         splitChunks: {
             cacheGroups: {
+                c0: {
+                    test: /[\\/]node_modules[\\/]/,
+                    name: "vendors",
+                    chunks: 'initial',
+                },
                 c1: {
                     test: /[\\/]node_modules[\\/]/,
                     chunks: 'async',
