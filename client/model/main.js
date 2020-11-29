@@ -46,5 +46,5 @@ import { setTranslate, locale } from './utils';
     app.use(controller);
     app.use(dragManager);
     app.use(pasteManager);
-    app.mount(document.getElementsByClassName('app')[0]);
+    app.mount('body');
 })();
