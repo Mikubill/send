@@ -2,7 +2,6 @@ package main
 
 import "sync"
 
-
 var ShardCount = 32
 
 // A "thread" safe map of type string:Anything.

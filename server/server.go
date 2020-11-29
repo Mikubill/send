@@ -20,14 +20,14 @@ import (
 )
 
 var (
-	cidrSet   []*net.IPNet
+	cidrSet     []*net.IPNet
 	fileHandler = http.FileServer(http.Dir(filepath.Join(basePath, "dist")))
 	wsInit      = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
 	preDefBlock = os.Getenv("pub")
-	preDefName = os.Getenv("pub2")
+	preDefName  = os.Getenv("pub2")
 )
 
 type request struct {
@@ -69,7 +69,6 @@ func ipGet(url string) []string {
 	_ = v.Body.Close()
 	return strings.Split(strings.TrimSpace(string(content)), "\n")
 }
-
 
 func httpHandler() {
 	httpWorkerPool, _ = ants.NewPoolWithFunc(10000, func(payload interface{}) {
@@ -117,24 +116,14 @@ func initTlsServer(mux http.Handler) {
 	}
 
 	tlsConfig := &tls.Config{
-		MinVersion:               tls.VersionTLS11,
-		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		PreferServerCipherSuites: true,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		},
+		MinVersion:   tls.VersionTLS11,
 		Certificates: []tls.Certificate{cer},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    roots,
 	}
 	server := http.Server{
-		Addr: ":443",
-		Handler: mux,
+		Addr:      ":443",
+		Handler:   mux,
 		TLSConfig: tlsConfig,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			addr, _ := net.ResolveTCPAddr(c.RemoteAddr().Network(), c.RemoteAddr().String())

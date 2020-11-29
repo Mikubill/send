@@ -65,7 +65,7 @@ var (
 	pongWait   = 60 * time.Second
 	pingPeriod = (pongWait * 9) / 10
 
-	maxMessageSize = int64(10*megabyte)
+	maxMessageSize = int64(10 * megabyte)
 	newline        = []byte{'\n'}
 	//space          = []byte{' '}
 )

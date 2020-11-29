@@ -343,6 +343,7 @@ const wip = (state, emit) => {
           class="opacity-0 w-0 h-0 appearance-none absolute overflow-hidden"
           type="file"
           multiple
+          webkitdirectory
           onfocus="${focus}"
           onblur="${blur}"
           onchange="${add}"

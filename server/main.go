@@ -49,7 +49,7 @@ func configSync() {
 		if err == nil {
 			_ = ioutil.WriteFile("config/data.json", s, 0666)
 		}
-		time.Sleep(10*time.Minute)
+		time.Sleep(10 * time.Minute)
 	}
 }
 

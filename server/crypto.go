@@ -47,4 +47,3 @@ func pkcs5UnPadding(origData []byte) []byte {
 	unPadding := int(origData[length-1])
 	return origData[:(length - unPadding)]
 }
-

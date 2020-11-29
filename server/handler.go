@@ -31,7 +31,7 @@ type existResponse struct {
 }
 
 type ownerBody struct {
-	ID []string `json:"id"`
+	ID         []string `json:"id"`
 	OwnerToken []string `json:"owner_token"`
 }
 
@@ -134,10 +134,10 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 				DownloadLimit: res.DownLimit,
 				DownloadCount: res.DownCount,
 				Last:          (res.Expire - time.Now().Unix()) * 1000,
-				Exist: 		true,
+				Exist:         true,
 			})
 		} else {
-			result = append(result, infoResponse{Exist:false})
+			result = append(result, infoResponse{Exist: false})
 		}
 	}
 	resp, _ := json.Marshal(result)
