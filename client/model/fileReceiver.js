@@ -10,7 +10,7 @@ export default class FileReceiver extends Nanobus {
         super('FileReceiver');
         this.keychain = new Keychain(fileInfo.secretKey, fileInfo.nonce);
         if (fileInfo.requiresPassword) {
-            this.keychain.setPassword(fileInfo.password, fileInfo.url);
+            this.keychain.setPassword(fileInfo.password);
         }
         this.fileInfo = fileInfo;
         this.reset();

@@ -46,10 +46,6 @@ export default class FileSender extends Nanobus {
     }
 
     upload(archive, token, cap) {
-        // if (!archive.hasExp) {
-        //     archive.timeLimit = 0
-        //     archive.dlimit = 0
-        // }
         if (cap.streamTransfer && navigator.serviceWorker.controller) {
             return this.uploadStream(archive, token);
         }
@@ -124,8 +120,9 @@ export default class FileSender extends Nanobus {
             archive: archive,
             key: bufferToStr(this.keychain.rawSecret),
         }
-        const encStream = await swMsg(init);
-        return this.uploadWs(encStream, archive, token)
+        return swMsg(init)
+            .then(encStream => this.uploadWs(encStream, archive, token))
+            .catch(error => this.uploadNative(archive, token)) 
     }
 
     async uploadNative(archive, token) {

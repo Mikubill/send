@@ -25,15 +25,20 @@ self.addEventListener('activate', event => {
     event.waitUntil(self.clients.claim().then(precache));
 });
 
-async function encryptHandler(file, port) {
-    let archive = file.archive;
-    let key = file.key;
-    const keychain = new Keychain(key);
-    const rawStream = concatStream(archive.files.map(file => blobStream(file)));
-    const encStream = encryptStream(rawStream, keychain.rawSecret)
-    port.postMessage(encStream, [encStream]);
-    // return new Response();
-}
+// async function encryptHandler(file, port) {
+//     let archive = file.archive;
+//     let key = file.key;
+//     const keychain = new Keychain(key);
+//     const rawStream = concatStream(archive.files.map(file => blobStream(file)));
+//     const encStream = encryptStream(rawStream, keychain.rawSecret)
+//     try {
+//         port.postMessage(encStream, [encStream]);
+//     } catch(e) {
+//         // unsupport transferable stream
+//         throw(e)
+//     }
+//     // return new Response();
+// }
  
 async function decryptHandler(id) {
     const file = map.get(id);
@@ -48,7 +53,7 @@ async function decryptHandler(id) {
         let type = file.type;
         const keychain = new Keychain(file.key, file.nonce);
         if (file.requiresPassword) {
-            keychain.setPassword(file.password, file.url);
+            keychain.setPassword(file.password);
         }
 
         file.download = downloadStream(id, keychain, file.token);
@@ -201,7 +206,11 @@ self.onmessage = event => {
         let key = strToBuffer(event.data.key);
         const rawStream = concatStream(archive.files.map(file => blobStream(file)));
         const encStream = encryptStream(rawStream, key)
-        event.ports[0].postMessage(encStream, [encStream]);
+        try {
+            event.ports[0].postMessage(encStream, [encStream]);
+        } catch (e) {
+            event.ports[0].postMessage({ error: e });
+        }
         // event.waitUntil(encryptHandler(info, event.ports[0]))
         // event.ports[0].postMessage({ id: info.id });
     }

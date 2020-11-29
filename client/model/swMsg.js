@@ -6,6 +6,7 @@ export default (msg) => {
                 if (event.data === undefined) {
                     reject('bad response from serviceWorker');
                 } else if (event.data.error !== undefined) {
+                    console.log(event.data.error)
                     reject(event.data.error);
                 } else {
                     // console.log(event.data)
