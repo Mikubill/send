@@ -209,7 +209,7 @@ self.onmessage = event => {
         try {
             event.ports[0].postMessage(encStream, [encStream]);
         } catch (e) {
-            event.ports[0].postMessage({ error: e });
+            event.ports[0].postMessage({ error: true });
         }
         // event.waitUntil(encryptHandler(info, event.ports[0]))
         // event.ports[0].postMessage({ id: info.id });
