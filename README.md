@@ -4,8 +4,6 @@ A file sharing experiment which allows you to send encrypted files to other user
 
 Based on Firefox Send, with optimization and simplification
 
-Deployment: https://neko.nz/
-
 # Development
 
 To start an ephemeral development server, run:
